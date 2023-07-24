@@ -6,7 +6,7 @@ const UPDATE_LOG = "UPDATELOG.md";
 // 解析 UPDATELOG.md 文件，获取更新信息
 export async function resolveUpdateLog(tag) {
   const cwd = process.cwd();
-
+  console.log("cwd:", cwd);
   const reTitle = /^## v[\d\.]+/;
   const reEnd = /^---/;
 

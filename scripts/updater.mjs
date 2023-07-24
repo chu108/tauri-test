@@ -77,16 +77,6 @@ async function resolveUpdater() {
       const sig = await getSignature(browser_download_url);
       updateData.platforms["darwin-aarch64"].signature = sig;
     }
-
-    // linux-x86_64 url
-    // if (name.endsWith(".AppImage.tar.gz")) {
-    //   updateData.platforms["linux-x86_64"].url = browser_download_url;
-    // }
-    // linux-x86_64 signature
-    // if (name.endsWith(".AppImage.tar.gz.sig")) {
-    //   const sig = await getSignature(browser_download_url);
-    //   updateData.platforms["linux-x86_64"].signature = sig;
-    // }
   });
 
   await Promise.allSettled(promises);
