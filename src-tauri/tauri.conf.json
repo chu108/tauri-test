@@ -8,9 +8,20 @@
   },
   "package": {
     "productName": "tauri-demo1",
-    "version": "0.0.0"
+    "version": "0.0.1"
   },
   "tauri": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/chu108/tauri-test/releases/download/updater/update.json"
+      ],
+      "dialog": false,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM2REYzMUU1MkJEM0VBODYKUldTRzZ0TXI1VEhmeG1ETEtDd2E3dmhoTWpCL1dtSDJ6MjhCU2V0enZ3akRCSzV3R3VGV3plRWUK",
+      "windows": {
+        "installMode": "passive"
+      }
+    },
     "allowlist": {
       "all": false,
       "shell": {
