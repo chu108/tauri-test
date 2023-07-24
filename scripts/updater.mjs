@@ -1,6 +1,5 @@
 import fetch from "node-fetch";
 import { getOctokit, context } from "@actions/github";
-import { resolveUpdateLog } from "./updatelog.mjs";
 
 const UPDATE_TAG_NAME = "updater";
 const UPDATE_JSON_FILE = "update.json";
@@ -32,7 +31,7 @@ async function resolveUpdater() {
   // 根据需要选择需更新的平台，应与编译脚本平台选择对应
   const updateData = {
     version: tag.name,
-    notes: await resolveUpdateLog(tag.name),
+    notes: "There is a new version",
     pub_date: new Date().toISOString(),
     platforms: {
       // comment out as needed
