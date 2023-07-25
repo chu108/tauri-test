@@ -2,73 +2,156 @@ name: Release CI
 
 on:
   push:
-    # Sequence of patterns matched against refs/tags
     tags:
-      - "v*" # Push events to matching v*, i.e. v1.0, v20.15.10
-  workflow_dispatch:
+      - "v*"
 
 jobs:
-  release:
-    permissions:
-      contents: write
+  build-chatgpt:
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        # 选择编译平台
-        platform: [macos-latest, windows-latest]
-    runs-on: ${{ matrix.platform }}
+        include:
+          - build: macos
+            os: macos-latest
+            arch: x86_64
+            target: x86_64-apple-darwin
+          - build: macos
+            os: macos-latest
+            arch: aarch64
+            target: aarch64-apple-darwin
+          - build: windows
+            os: windows-latest
+            arch: x86_64
+            target: x86_64-pc-windows-msvc
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Rust setup
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: "./src-tauri -> target"
-
-      - name: Sync node version and insatll nodejs
-        uses: actions/setup-node@v3
-        with:
-          node-version: "lts/*"
-
-      # 使用 pnpm 作为包管理器
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v2
+        name: Install pnpm
         id: pnpm-install
         with:
           version: 8
           run_install: false
 
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
-
-      - uses: actions/cache@v3
-        name: Setup pnpm cache
+      - name: Install Node.js
+        uses: actions/setup-node@v3
         with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
+          node-version: 18
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
 
-      - name: Install frontend dependencies
-        # If you don't have `beforeBuildCommand` configured you may want to build your frontend here too.
-        run: pnpm install # Change this to npm, yarn or pnpm.
+      - name: "Setup Rust"
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
 
-      - name: Build the app
-        uses: tauri-apps/tauri-action@v0
+      - name: Install rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: fix tray icon
+        if: matrix.os != 'macos-latest'
+        run: |
+          pnpm fix:tray
+
+      - run: pnpm tauri build --target ${{ matrix.target }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ""
+
+      - uses: actions/upload-artifact@v3
+        if: matrix.os == 'macos-latest'
         with:
-          tagName: ${{ github.ref_name }} # This only works if your workflow triggers on new tags.
-          releaseName: "App Name v__VERSION__" # 自定义 release 名称，__VERSION__ 将自动填写为版本信息
-          releaseBody: "See the assets to download and install this version."
-          releaseDraft: true
+          name: artifacts-${{ matrix.arch }}
+          path: |
+            ./target/${{ matrix.target }}/release/bundle/dmg/**.dmg
+            ./target/${{ matrix.target }}/release/bundle/macos/**.app.*
+
+      - uses: actions/upload-artifact@v3
+        if: matrix.os == 'windows-latest'
+        with:
+          name: artifacts-${{ matrix.arch }}
+          path: |
+            ./target/${{ matrix.target }}/release/bundle/msi/**
+
+  release:
+    needs: build-chatgpt
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Query version number
+        run: echo "version=${GITHUB_REF:11}" >> $GITHUB_ENV
+
+      - name: Download x86_64 artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: artifacts-x86_64
+          path: artifacts/x86_64
+
+      - name: Download aarch64 artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: artifacts-aarch64
+          path: artifacts/aarch64
+
+      - name: Rename artifacts
+        run: |
+          mv "artifacts/aarch64/dmg/ChatGPT_${{ env.version }}_aarch64.dmg" "artifacts/ChatGPT_${{ env.version }}_macos_aarch64.dmg"
+          mv "artifacts/aarch64/macos/ChatGPT.app.tar.gz" "artifacts/ChatGPT_${{ env.version }}_macos_aarch64.app.tar.gz"
+          mv "artifacts/aarch64/macos/ChatGPT.app.tar.gz.sig" "artifacts/ChatGPT_${{ env.version }}_macos_aarch64.app.tar.gz.sig"
+
+          mv "artifacts/x86_64/dmg/ChatGPT_${{ env.version }}_x64.dmg" "artifacts/ChatGPT_${{ env.version }}_macos_x86_64.dmg"
+          mv "artifacts/x86_64/macos/ChatGPT.app.tar.gz" "artifacts/ChatGPT_${{ env.version }}_macos_x86_64.app.tar.gz"
+          mv "artifacts/x86_64/macos/ChatGPT.app.tar.gz.sig" "artifacts/ChatGPT_${{ env.version }}_macos_x86_64.app.tar.gz.sig"
+
+          mv "artifacts/x86_64/deb/chat-gpt_${{ env.version }}_amd64.deb" "artifacts/x86_64/deb/ChatGPT_${{ env.version }}_linux_x86_64.deb"
+          mv "artifacts/x86_64/appimage/chat-gpt_${{ env.version }}_amd64.AppImage.tar.gz" "artifacts/ChatGPT_${{ env.version }}_linux_x86_64.AppImage.tar.gz"
+          mv "artifacts/x86_64/appimage/chat-gpt_${{ env.version }}_amd64.AppImage.tar.gz.sig" "artifacts/ChatGPT_${{ env.version }}_linux_x86_64.AppImage.tar.gz.sig"
+
+          mv "artifacts/x86_64/ChatGPT_${{ env.version }}_x64_en-US.msi" "artifacts/ChatGPT_${{ env.version }}_windows_x86_64.msi"
+          mv "artifacts/x86_64/ChatGPT_${{ env.version }}_x64_en-US.msi.zip" "artifacts/ChatGPT_${{ env.version }}_windows_x86_64.msi.zip"
+          mv "artifacts/x86_64/ChatGPT_${{ env.version }}_x64_en-US.msi.zip.sig" "artifacts/ChatGPT_${{ env.version }}_windows_x86_64.msi.zip.sig"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ env.version }}
+          name: DEMO1 v${{ env.version }}
+          body: See the assets to download this version and install.
           prerelease: false
+          generate_release_notes: false
+          files: ./artifacts/**/*
+
+  updater:
+    runs-on: macos-latest
+    needs: release
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: pnpm/action-setup@v2
+        name: Install pnpm
+        id: pnpm-install
+        with:
+          version: 8
+          run_install: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: pnpm
+      - run: pnpm install
+
+      - name: Release updater file
+        run: pnpm run updater
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
