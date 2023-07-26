@@ -35,8 +35,8 @@ async function resolveUpdater() {
     pub_date: new Date().toISOString(),
     platforms: {
       "windows-x86_64": { signature: "", url: "" },
+      "darwin-aarch64": { signature: "", url: "" },
       "darwin-x86_64": { signature: "", url: "" },
-      "linux-x86_64": { signature: "", url: "" },
     },
   };
 
