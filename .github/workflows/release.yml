@@ -15,14 +15,23 @@ jobs:
       fail-fast: false
       matrix:
         # 选择编译平台
-        platform: [macos-latest, windows-latest]
-    runs-on: ${{ matrix.platform }}
+        platform:
+          - host: macos-latest
+            target: aarch64-apple-darwin
+          - host: macos-latest
+            target: x86_64-apple-darwin
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.platform.host }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Add target
+        run: rustup target add ${{ matrix.platform.target }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -40,6 +49,7 @@ jobs:
         id: pnpm-install
         with:
           version: 8
+          run_install: false
 
       - name: Get pnpm store directory
         id: pnpm-cache
@@ -66,8 +76,47 @@ jobs:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ""
         with:
+          includeUpdaterJson: true
+          args: --target ${{ matrix.platform.target }}
           tagName: ${{ github.ref_name }} # This only works if your workflow triggers on new tags.
           releaseName: "App Name v__VERSION__" # 自定义 release 名称，__VERSION__ 将自动填写为版本信息
           releaseBody: "See the assets to download and install this version."
           releaseDraft: true
           prerelease: false
+  release-update:
+    needs: release
+    permissions:
+      contents: write
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        id: pnpm-install
+        with:
+          version: 8
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - uses: actions/cache@v3
+        name: Setup pnpm cache
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Release updater file
+        run: pnpm run updater
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

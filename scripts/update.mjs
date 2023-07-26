@@ -1,6 +1,5 @@
 import fetch from "node-fetch";
 import { getOctokit, context } from "@actions/github";
-import { resolveUpdateLog } from "./updatelog.mjs";
 
 const UPDATE_TAG_NAME = "updater";
 const UPDATE_JSON_FILE = "update.json";
@@ -32,12 +31,10 @@ async function resolveUpdater() {
   // 根据需要选择需更新的平台，应与编译脚本平台选择对应
   const updateData = {
     version: tag.name,
-    notes: await resolveUpdateLog(tag.name),
+    notes: "11111111111111",
     pub_date: new Date().toISOString(),
     platforms: {
-      // comment out as needed
       "windows-x86_64": { signature: "", url: "" },
-      // "darwin-aarch64": { signature: "", url: "" },
       "darwin-x86_64": { signature: "", url: "" },
       "linux-x86_64": { signature: "", url: "" },
     },
@@ -77,16 +74,6 @@ async function resolveUpdater() {
       const sig = await getSignature(browser_download_url);
       updateData.platforms["darwin-aarch64"].signature = sig;
     }
-
-    // linux-x86_64 url
-    // if (name.endsWith(".AppImage.tar.gz")) {
-    //   updateData.platforms["linux-x86_64"].url = browser_download_url;
-    // }
-    // linux-x86_64 signature
-    // if (name.endsWith(".AppImage.tar.gz.sig")) {
-    //   const sig = await getSignature(browser_download_url);
-    //   updateData.platforms["linux-x86_64"].signature = sig;
-    // }
   });
 
   await Promise.allSettled(promises);
