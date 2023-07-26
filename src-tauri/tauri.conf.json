@@ -8,9 +8,10 @@
   },
   "package": {
     "productName": "tauri-demo1",
-    "version": "0.0.15"
+    "version": "0.0.19"
   },
   "tauri": {
+    "macOSPrivateApi": true,
     "updater": {
       "active": true,
       "endpoints": [
@@ -24,6 +25,9 @@
     },
     "allowlist": {
       "all": false,
+      "globalShortcut": {
+        "all": true
+      },
       "shell": {
         "all": false,
         "open": true
@@ -51,7 +55,8 @@
         "title": "tauri-demo1",
         "width": 800,
         "height": 600,
-        "visible": true
+        "visible": true,
+        "label": "main"
       }
     ]
   }
